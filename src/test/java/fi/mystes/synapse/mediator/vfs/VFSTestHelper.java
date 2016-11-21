@@ -23,6 +23,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.apache.commons.vfs2.AllFileSelector;
@@ -30,6 +31,18 @@ import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;
 import org.apache.commons.vfs2.FileSystemManager;
 import org.apache.commons.vfs2.VFS;
+import org.apache.sshd.common.NamedFactory;
+import org.apache.sshd.common.file.nativefs.NativeFileSystemFactory;
+import org.apache.sshd.server.Command;
+import org.apache.sshd.server.SshServer;
+import org.apache.sshd.server.auth.password.StaticPasswordAuthenticator;
+import org.apache.sshd.server.keyprovider.AbstractGeneratorHostKeyProvider;
+import org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider;
+import org.apache.sshd.server.scp.ScpCommandFactory;
+import org.apache.sshd.server.shell.InteractiveProcessShellFactory;
+import org.apache.sshd.server.subsystem.sftp.SftpSubsystemFactory;
+
+import javax.swing.filechooser.FileSystemView;
 
 public class VFSTestHelper {
 
@@ -108,6 +121,20 @@ public class VFSTestHelper {
         }
 
         return files;
+    }
+
+    public static SshServer getSshServer() {
+        SshServer sshd = SshServer.setUpDefaultServer();
+        sshd.setPort(10022);
+        sshd.setPasswordAuthenticator(new StaticPasswordAuthenticator(true));
+        AbstractGeneratorHostKeyProvider provider = new SimpleGeneratorHostKeyProvider();
+        sshd.setCommandFactory(new ScpCommandFactory());
+        sshd.setSubsystemFactories(Arrays.<NamedFactory<Command>>asList(new SftpSubsystemFactory())); // ??!
+        sshd.setKeyPairProvider(provider);
+        sshd.setFileSystemFactory(new NativeFileSystemFactory());
+        sshd.setShellFactory(new InteractiveProcessShellFactory());
+
+        return sshd;
     }
 
     public static interface TestFile {

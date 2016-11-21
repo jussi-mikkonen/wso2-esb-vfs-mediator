@@ -16,8 +16,11 @@
 package fi.mystes.synapse.mediator.vfs;
 
 import fi.mystes.synapse.mediator.vfs.VFSTestHelper.*;
+import org.apache.catalina.tribes.util.UUIDGenerator;
 import org.apache.commons.logging.Log;
 import org.apache.commons.vfs2.FileSystemException;
+import org.apache.commons.vfs2.VFS;
+import org.apache.sshd.server.SshServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -28,6 +31,10 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+import java.util.UUID;
 
 import static fi.mystes.synapse.mediator.vfs.VFSTestHelper.*;
 import static org.junit.Assert.assertEquals;
@@ -292,6 +299,135 @@ public class VfsFileTransferUtilityTest {
         assertFilesExists(dynamicTarget, 10);
         assertFilesExists(ARCHIVE_DIR, 10);
         assertEquals("Utility returned false file copied count", 10, copyCount);
+    }
+
+    @Test
+    public void testCopyWithMultipleThreadsSimultaneously() throws Exception {
+        final int threadCount = 2001;
+        String fileContent = "this be the content of the test file, yes.";
+        String fileName = UUID.randomUUID().toString() + ".testFile";
+        String fileName2 = UUID.randomUUID().toString() + ".darkness";
+
+        createFile(SOURCE_DIR + "/" + fileName, fileContent);
+        createFile(SOURCE_DIR + "/" + fileName2, fileContent + fileContent);
+
+        Thread.UncaughtExceptionHandler handler = new Thread.UncaughtExceptionHandler() {
+
+            @Override
+            public void uncaughtException(Thread t, Throwable e) {
+                try {
+                    System.out.println("Uncaught exception in thread: " + e.getMessage());
+                    throw e;
+                } catch (Throwable throwable) {
+                    throwable.printStackTrace();
+                }
+            }
+        };
+
+        List<Thread> threads = new ArrayList<Thread>();
+
+
+        Random rand = new Random();
+
+        for(int i = 0; i < threadCount; i++) {
+            Thread t = new Thread(new CopyRunnable(i, rand.nextInt(500), SOURCE_DIR));
+            t.setUncaughtExceptionHandler(handler);
+            threads.add(t);
+        }
+
+        for(int i = 0; i < threadCount; i++) {
+//            System.out.println("Starting thread " + i);
+            threads.get(i).start();
+        }
+
+        for(Thread thread : threads) {
+            thread.join();
+        }
+
+        for(int i = 0; i < threadCount; i++) {
+            String target = TARGET_DIR + "/thread" + i + "/" + fileName;
+            String target2 = TARGET_DIR + "/thread" + i + "/" + fileName2;
+            assertFileExists(target);
+            assertFileExists(target2);
+            assertFileContentEquals(target, fileContent);
+            assertFileContentEquals(target2, fileContent + fileContent);
+        }
+    }
+
+    @Test
+    public void testCopyWithMultipleThreadsOverSftp() throws Exception {
+        SshServer server = getSshServer();
+        server.setHost("localhost");
+        server.start();
+
+        String fileName = "testingtest_ing.testFile";
+        String SFTP_SOURCE = "sftp://user:password@localhost:10022//";
+        String SFTP_FILE = SFTP_SOURCE + fileName;
+
+        createFile(SFTP_FILE, "sftp file content goes here hehe");
+
+        final int threadCount = 200;
+
+        Thread.UncaughtExceptionHandler handler = new Thread.UncaughtExceptionHandler() {
+
+            @Override
+            public void uncaughtException(Thread t, Throwable e) {
+                try {
+                    System.out.println("Uncaught exception in thread: " + e.getMessage());
+                    throw e;
+                } catch (Throwable throwable) {
+                    throwable.printStackTrace();
+                }
+            }
+        };
+
+        List<Thread> threads = new ArrayList<Thread>();
+
+        Random rand = new Random();
+
+        for(int i = 0; i < threadCount; i++) {
+            Thread t = new Thread(new CopyRunnable(i, rand.nextInt(500), SFTP_SOURCE));
+            t.setUncaughtExceptionHandler(handler);
+            threads.add(t);
+        }
+
+        for(int i = 0; i < threadCount; i++) {
+            //System.out.println("Starting thread " + i);
+            threads.get(i).start();
+        }
+
+        for(Thread thread : threads) {
+            thread.join();
+        }
+
+        assertFileExists(SFTP_FILE);
+
+        for(int i = 0; i < threadCount; i++) {
+            assertFileExists(TARGET_DIR + "/thread" + i + "/" + fileName);
+        }
+
+        server.stop();
+    }
+
+    private class CopyRunnable implements Runnable {
+        private int threadNum;
+        private int waitMillis;
+        private String source;
+
+        private CopyRunnable(int threadNum, int waitMillis, String src) { this.threadNum = threadNum; this.waitMillis = waitMillis; this.source = src; }
+
+        @Override
+        public void run() {
+            try {
+                Thread.sleep(waitMillis);
+                String target = TARGET_DIR + "/thread" + threadNum;
+                new VfsFileTransferUtility(VfsOperationOptions.with().filePatternRegex(".*\\.testFile").sourceDirectory(source).targetDirectory(target).createMissingDirectories(true).build()).copyFiles();
+                new VfsFileTransferUtility(VfsOperationOptions.with().filePatternRegex(".*\\.darkness").sourceDirectory(source).targetDirectory(target).createMissingDirectories(true).build()).copyFiles();
+                //System.out.println("Thread " + threadNum + " done");
+            } catch (Exception e) {
+                throw new RuntimeException("Failed the copy operation!" + e.getMessage());
+            }
+        }
     }
 
     private String expectedFolderNotExistsErrorString(String folder) {
