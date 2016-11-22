@@ -121,36 +121,37 @@
             <version>2.6.0</version>
             <scope>test</scope>
         </dependency>
+        <!--
         <dependency>
             <groupId>org.apache.sshd</groupId>
             <artifactId>sshd-core</artifactId>
             <version>1.3.0</version>
             <scope>test</scope>
         </dependency>
-        <dependency>
+
+        -->
+<!--        <dependency>
             <groupId>com.jcraft</groupId>
             <artifactId>jsch</artifactId>
             <version>0.1.50</version>
             <scope>test</scope>
         </dependency>
+-->
 
 
-
-        <dependency>
+<!--        <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>${slf4jVersion}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
-            <!-- any library that uses commons-logging will be directed to slf4j -->
             <groupId>org.slf4j</groupId>
             <artifactId>jcl-over-slf4j</artifactId>
             <version>${slf4jVersion}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
-            <!-- any library that uses slf4j will be directed to java.util.logging -->
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-jdk14</artifactId>
             <version>${slf4jVersion}</version>
@@ -168,7 +169,7 @@
             <version>${slf4jVersion}</version>
             <scope>test</scope>
         </dependency>
-
+-->
 
     </dependencies>
     <properties>
